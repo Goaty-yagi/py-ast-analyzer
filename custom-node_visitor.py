@@ -1,5 +1,7 @@
 import ast
 import os
+
+from node_count_strage import NCS
 """
 This module provides CustomNodeVisitor class
 inherited from NodeVisitor class
@@ -16,10 +18,11 @@ class CustomNodeVisitor(ast.NodeVisitor):
     - __last_node: Last node of the initial node.
     - __node_count: Dictionary to store counts of different node types.
     - __format_values: List to store format value to check specifiers.
-    _ __doc_list: List to store the doc dictionary according
+    - __doc_list: List to store the doc dictionary according
     to __doc_d_prototype attributes.
-    - __doc_d_prototype: Prototype for __doc_list attributes.
+
     """
+    __DC_list = ["ClassDef", "AsyncFunctionDef", "FunctionDef"]
 
     def __init__(self, script: str) -> None:
         """
@@ -32,11 +35,7 @@ class CustomNodeVisitor(ast.NodeVisitor):
         self.__node_count = {}
         self.__format_values = []
         self.__doc_list = []
-        self.__fun_cls_call_list = []
-        self.__doc_d_prototype = {"obj": "",
-                                  "class": "", "name": "", "doc": ""}
-        self.__call_d_prototype = {"obj": "",
-                                   "name": "", "args": [], "kwags": {}}
+
         self.visit(self.tree)
 
     @property
@@ -61,31 +60,6 @@ class CustomNodeVisitor(ast.NodeVisitor):
         - AttributeError: This attribute is read-only.
         """
         raise AttributeError(CustomNodeVisitor.__read_only_error_text("sum"))
-
-    @property
-    def last_node(self) -> None:
-        """
-        Property method to raise ValueError for "last_node" attribute.
-
-        Raises:
-        - ValueError: Not allowed to access.
-        """
-        raise ValueError(
-            CustomNodeVisitor.__not_allowed_error_text("last_node"))
-
-    @last_node.setter
-    def last_node(self, value: any) -> None:
-        """
-        Property method to raise ValueError for "last_node" attribute.
-
-        Parameters:
-        - value: The value to set (ignored).
-
-        Raises:
-        - ValueError: Not allowed to access.
-        """
-        raise ValueError(
-            CustomNodeVisitor.__not_allowed_error_text("last_node"))
 
     @property
     def node_count(self) -> int:
@@ -210,14 +184,16 @@ class CustomNodeVisitor(ast.NodeVisitor):
         - node: AST node to visit.
         """
         self.__count_all_node(node)
-        self.__set_doc(node)
         self.__sum += 1
         super().generic_visit(node)
 
     def __count_all_node(self, node: ast.AST) -> None:
         node_name = node.__class__.__name__
-        self.__node_count[node_name] = self.__node_count.get(
-            node_name, 0) + 1
+        try:
+            nc = self.__node_count[node_name]
+            nc.append(node)
+        except KeyError:
+            self.__node_count[node_name] = (NCS(node_name, node))
 
     def __set_ast_tree(self, script: str) -> None:
         """
@@ -244,7 +220,7 @@ class CustomNodeVisitor(ast.NodeVisitor):
         """
         return ast.dump(self.tree, indent=indent)
 
-    def get_counts_subset(
+    def get_subset(
             self, *key_list: list[str]) -> dict[str: int]:
         """
         Returns a dictionary containing counts for
@@ -292,44 +268,75 @@ class CustomNodeVisitor(ast.NodeVisitor):
         # Assume that the visitation process starts with the visit method.
         self.__last_node = list(ast.iter_child_nodes(node.body[-1]))[-1]
 
-    def __set_doc(
-            self, node: ast.AST,
-            cls_name: str = None,
-            mod_name: str = None
-    ) -> None:
+    def get_docs(self) -> list:
         """
-        This method sets documentation of certain classes.
-
-        Parameters:
-            - node(ast.AST): AST node to determine the last child node.
-            - cls_name(str): String for the first module class.
-            - mod_name(str): String for the first module class.
+        This method create a list containing documemt dict, and returns it.
         """
-        def_class_list = ["ClassDef", "AsyncFunctionDef", "FunctionDef"]
+        DC_list = self.__class__.__DC_list
+        DC_list.append("Module")
+        temp_list = []
+        subset = self.get_subset(*DC_list)
+        for key, val in subset.items():
+            obj_list = val.get()
+            for obj in obj_list:
+                temp_list.append({
+                    "obj": obj,
+                    "class": key,
+                    "name": obj.name if not key == 'Module' else "Module",
+                    "doc": ast.get_docstring(obj)})
+        return temp_list
 
-        if node.__class__.__name__ in def_class_list or cls_name:
-            self.__doc_list.append({
-                **self.__call_d_prototype,
+    def get_call(self):
+        name = ""
+        c_type = ""
+        temp_list = []
+        subset: dict = self.get_subset("Call")
+
+        for node in subset["Call"].get():
+            if isinstance(node.func, ast.Attribute):
+                # Handling calls to the method.
+                name = node.func.attr
+                c_type = "Method"
+                if node.func.attr == 'format':
+                    self.__format_values.append(node.func.value.value)
+            elif isinstance(node.func, ast.Name):
+                # Assuming simple function calls.
+                name = node.func.id
+                def_doc_list = self.get_docs()
+                c_type = "Class" if any(obj["name"] == name and isinstance(obj["obj"], ast.ClassDef)
+                                        for obj in def_doc_list) else "Function"
+            temp_list.append({
                 "obj": node,
-                "class": cls_name if cls_name else node.__class__.__name__,
-                "name": mod_name if mod_name else node.name,
-                "doc": ast.get_docstring(node)})
+                "type": c_type,
+                "name": name,
+                "args": node.args,
+                "kwags": node.keywords
+            })
+        return temp_list
+
+    def get_assign(self):
+        pass
+
+    def get_op(self):
+        pass
+
+    def get_cmp(self):
+        pass
+
+    def get_compre(self):
+        pass
 
     # *** visit_classname methods from here ***
 
     def visit_Module(self, node):
         """
         Visits a Module node and counts method or function calls.
-        If modele doc doesn't start from the first line,
-        None will be set.
 
         Parameters:
         - node: Module node in the AST.
         """
         if self.__last_node is None:
             self.__set_last_node(node)
-        if not self.__doc_list:
-            self.__set_doc(node, "Module", "Module")
         self.generic_visit(node)
 
     def visit_Call(self, node: ast.AST) -> None:
@@ -339,31 +346,18 @@ class CustomNodeVisitor(ast.NodeVisitor):
         Parameters:
         - node: Call node in the AST.
         """
-        print("called", node.func)
-        name = ''
         if isinstance(node.func, ast.Attribute):
             # Handling calls to the method.
-            name = node.func.attr
             self.__node_count[node.func.attr] = self.__node_count.get(
                 node.func.attr, 0) + 1
-            print("ATTR", node.func.attr)
             if node.func.attr == 'format':
                 self.__format_values.append(node.func.value.value)
         elif isinstance(node.func, ast.Name):
             # Assuming simple function calls.
-            name = node.func.id
             function_name = node.func.id
-            print("ID", node.func.id)
             self.__node_count[function_name] = self.__node_count.get(
                 function_name, 0) + 1
 
-        self.__doc_list.append({
-            **self.__doc_d_prototype,
-            "obj": node,
-            "name": "",
-            "args": [],
-            "kwags": {}
-        })
         self.generic_visit(node)
 
 
@@ -397,7 +391,9 @@ tree = ast.parse(code, type_comments=True)
 visitor = CustomNodeVisitor(code)
 print("Node_count:", visitor.node_count)
 print("Node_sum:", visitor.sum)
-print("Doc_list:", visitor.doc_list[1]["obj"].lineno)
-print("Counts_subset:", visitor.get_counts_subset('While', 'import', 'loop'))
+print("Doc_list:", visitor.doc_list)
+print("Counts_subset:", visitor.get_subset('While', 'import', 'loop'))
 print(visitor.format_specifier_check("%d"))
-print(visitor.dump())
+print("DOCS:", visitor.get_docs())
+print("CALL:", visitor.get_call())
+# print(visitor.dump())
