@@ -23,6 +23,7 @@ class CustomNodeVisitor(ast.NodeVisitor):
 
     """
     __DC_list = ["ClassDef", "AsyncFunctionDef", "FunctionDef"]
+    __ASSIGN_list = ["Assign", "AugAssign", "AnnAssign", "NamedExpr"]
 
     def __init__(self, script: str) -> None:
         """
@@ -34,7 +35,6 @@ class CustomNodeVisitor(ast.NodeVisitor):
         self.__last_node = None
         self.__node_count = {}
         self.__format_values = []
-        self.__doc_list = []
 
         self.visit(self.tree)
 
@@ -109,30 +109,6 @@ class CustomNodeVisitor(ast.NodeVisitor):
         """
         raise ValueError(
             CustomNodeVisitor.__not_allowed_error_text("format_values"))
-
-    @property
-    def doc_list(self) -> int:
-        """
-        Property method to get the value of the 'doc_list' attribute.
-
-        Returns:
-        - __doc_list attribute.
-        """
-        return self.__doc_list
-
-    @doc_list.setter
-    def doc_list(self, value: any):
-        """
-        Setter method for 'doc_list' attribute, raise Attribute error.
-
-        Parameters:
-        - value(any): The value to set (ignored).
-
-        Raises:
-        - AttributeError: This attribute is read-only.
-        """
-        raise AttributeError(
-            CustomNodeVisitor.__read_only_error_text("doc_list"))
 
     @staticmethod
     def __not_allowed_error_text(attr: str) -> str:
@@ -232,11 +208,7 @@ class CustomNodeVisitor(ast.NodeVisitor):
         Returns:
         - Dictionary with counts for the specified keys.
         """
-        temp_dict = dict()
-        for key in key_list:
-            if key in self.__node_count.keys():
-                temp_dict[key] = self.__node_count[key]
-        return temp_dict
+        return {key: self.__node_count[key] for key in self.__node_count if key in key_list}
 
     def format_specifier_check(self, specifier: str = ""):
         """
@@ -277,13 +249,13 @@ class CustomNodeVisitor(ast.NodeVisitor):
         temp_list = []
         subset = self.get_subset(*DC_list)
         for key, val in subset.items():
-            obj_list = val.get()
-            for obj in obj_list:
+            nodes = val.get()
+            for node in nodes:
                 temp_list.append({
-                    "obj": obj,
+                    "obj": node,
                     "class": key,
-                    "name": obj.name if not key == 'Module' else "Module",
-                    "doc": ast.get_docstring(obj)})
+                    "name": node.name if not key == 'Module' else "Module",
+                    "doc": ast.get_docstring(node)})
         return temp_list
 
     def get_call(self):
@@ -297,10 +269,8 @@ class CustomNodeVisitor(ast.NodeVisitor):
                 # Handling calls to the method.
                 name = node.func.attr
                 c_type = "Method"
-                if node.func.attr == 'format':
-                    self.__format_values.append(node.func.value.value)
             elif isinstance(node.func, ast.Name):
-                # Assuming simple function calls.
+                # Assuming simple function and class call.
                 name = node.func.id
                 def_doc_list = self.get_docs()
                 c_type = "Class" if any(obj["name"] == name and isinstance(obj["obj"], ast.ClassDef)
@@ -309,13 +279,56 @@ class CustomNodeVisitor(ast.NodeVisitor):
                 "obj": node,
                 "type": c_type,
                 "name": name,
+                "s_segment": ast.get_source_segment(self.script, node),
                 "args": node.args,
                 "kwags": node.keywords
             })
         return temp_list
 
-    def get_assign(self):
-        pass
+    def get_assign(self) -> list:
+        """
+        Retrive all assign objs and return them in list.
+
+        Assign: variable_name = 42
+        Assign(expr* targets, expr value, string? type_comment)
+
+        AnnAssign: variable_name: int = 42
+        AugAssign(expr target, operator op, expr value)
+
+        AugAssign: variable_name += 42
+        AnnAssign(expr target, expr annotation, expr? value, int simple)
+
+        NamedExpr: x := some_function()) > 0
+        NamedExpr(expr target, expr value)
+        """
+        def append_obj(node:  ast.AST, key: str):
+            # target and value will be sturing in future update
+            t_name = ''
+            t_value = ''
+            if isinstance(node, ast.Assign):
+                t_name = "targets"
+                t_value = node.targets
+            else:
+                t_name = "target"
+                t_value = node.target
+            temp_list.append({
+                "obj": node,
+                "class": key,
+                t_name: t_value,
+                "value": node.value,
+                "s_segment": ast.get_source_segment(self.script, node),
+            })
+        ASSIGN_list = self.__class__.__ASSIGN_list
+        temp_list = []
+        subset = self.get_subset(*ASSIGN_list)
+        for key, val in subset.items():
+            nodes = val.get()
+            for node in nodes:
+                if not isinstance(node, ast.Attribute):
+                    append_obj(node, key)
+                elif isinstance(node.ctx, ast.Store):
+                    append_obj(node, key)
+        return temp_list
 
     def get_op(self):
         pass
@@ -347,17 +360,8 @@ class CustomNodeVisitor(ast.NodeVisitor):
         - node: Call node in the AST.
         """
         if isinstance(node.func, ast.Attribute):
-            # Handling calls to the method.
-            self.__node_count[node.func.attr] = self.__node_count.get(
-                node.func.attr, 0) + 1
             if node.func.attr == 'format':
                 self.__format_values.append(node.func.value.value)
-        elif isinstance(node.func, ast.Name):
-            # Assuming simple function calls.
-            function_name = node.func.id
-            self.__node_count[function_name] = self.__node_count.get(
-                function_name, 0) + 1
-
         self.generic_visit(node)
 
 
@@ -373,7 +377,7 @@ def add_numbers(a: str, b: str):
     return a + b
 numbers(1,2)
 print("{}, ko {%d}".format(a, b))
-while(True):
+while(x := some_function() > 0):
     a.method(te)
     try:
         pass
@@ -385,15 +389,19 @@ class Cl:
     '''
     pass
 myClass = Cl()
+myClass.i = 90
 """
 
 tree = ast.parse(code, type_comments=True)
 visitor = CustomNodeVisitor(code)
 print("Node_count:", visitor.node_count)
 print("Node_sum:", visitor.sum)
-print("Doc_list:", visitor.doc_list)
 print("Counts_subset:", visitor.get_subset('While', 'import', 'loop'))
 print(visitor.format_specifier_check("%d"))
 print("DOCS:", visitor.get_docs())
 print("CALL:", visitor.get_call())
+print()
+print("ASSIGN:", visitor.get_assign())
+for i in visitor.get_assign():
+    print(ast.get_source_segment(code, i['obj']))
 # print(visitor.dump())
