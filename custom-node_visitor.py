@@ -24,6 +24,21 @@ class CustomNodeVisitor(ast.NodeVisitor):
     """
     __DC_list = ["ClassDef", "AsyncFunctionDef", "FunctionDef"]
     __ASSIGN_list = ["Assign", "AugAssign", "AnnAssign", "NamedExpr"]
+    __OP_mapping = {
+        "Add": "+",
+        "Sub": "-",
+        "Mult": "*",
+        "Div": "/",
+        "FloorDiv": "//",
+        "Mod": "%",
+        "Pow": "**",
+        "LShift": "<<",
+        "RShift": ">>",
+        "BitOr": "|",
+        "BitXor": "^",
+        "BitAnd": "&",
+        "MatMult": "@"
+    }
 
     def __init__(self, script: str) -> None:
         """
@@ -330,8 +345,26 @@ class CustomNodeVisitor(ast.NodeVisitor):
                     append_obj(node, key)
         return temp_list
 
-    def get_op(self):
-        pass
+    def get_b_op(self):
+        """
+        get binary operation
+
+        BinOp(expr left, operator op, expr right)
+        x + y
+        """
+        temp_list = []
+        subset = self.get_subset("BinOp")
+        for val in subset.values():
+            nodes = val.get()
+            for node in nodes:
+                temp_list.append({
+                    "obj": node,
+                    "left": node.left.id if isinstance(node.left, ast.Name) else node.left.value,
+                    "op": CustomNodeVisitor.__OP_mapping[node.op.__class__.__name__],
+                    "right": node.right.id if isinstance(node.right, ast.Name) else node.right.value,
+                    "s_segment": ast.get_source_segment(self.script, node)
+                })
+        return temp_list
 
     def get_cmp(self):
         pass
@@ -388,7 +421,7 @@ class Cl:
     kookoko
     '''
     pass
-myClass = Cl()
+myClass = Cl(1 - 2)
 myClass.i = 90
 """
 
@@ -396,12 +429,14 @@ tree = ast.parse(code, type_comments=True)
 visitor = CustomNodeVisitor(code)
 print("Node_count:", visitor.node_count)
 print("Node_sum:", visitor.sum)
-print("Counts_subset:", visitor.get_subset('While', 'import', 'loop'))
+print("Counts_subset:", visitor.get_subset('While', 'import', 'BinOp'))
 print(visitor.format_specifier_check("%d"))
 print("DOCS:", visitor.get_docs())
 print("CALL:", visitor.get_call())
 print()
 print("ASSIGN:", visitor.get_assign())
+print()
+print("BINARY_OP:", visitor.get_b_op())
 for i in visitor.get_assign():
     print(ast.get_source_segment(code, i['obj']))
 # print(visitor.dump())
