@@ -1,6 +1,6 @@
 import ast
 import os
-
+from ast_repr import BaseReprAST, Call
 from node_count_strage import NCS
 """
 This module provides CustomNodeVisitor class
@@ -22,24 +22,12 @@ class CustomNodeVisitor(ast.NodeVisitor):
     to __doc_d_prototype attributes.
 
     """
+    unparser = ast._Unparser()
     __DC_list = ["ClassDef", "AsyncFunctionDef", "FunctionDef"]
     __ASSIGN_list = ["Assign", "AugAssign", "AnnAssign", "NamedExpr"]
-    __OP_mapping = {
-        "Add": "+",
-        "Sub": "-",
-        "Mult": "*",
-        "Div": "/",
-        "FloorDiv": "//",
-        "Mod": "%",
-        "Pow": "**",
-        "LShift": "<<",
-        "RShift": ">>",
-        "BitOr": "|",
-        "BitXor": "^",
-        "BitAnd": "&",
-        "MatMult": "@"
-    }
-
+    __OP_mapping = unparser.binop
+    __COMPARE_mapping = unparser.cmpops
+    __BOOL_OP_mapping = unparser.boolops
     def __init__(self, script: str) -> None:
         """
         Initializes the CustomNodeVisitor object.
@@ -210,6 +198,11 @@ class CustomNodeVisitor(ast.NodeVisitor):
         - str: AST dump of the script.
         """
         return ast.dump(self.tree, indent=indent)
+    def get(self, *args: list[str]) -> dict[str: int]:
+        if len(args):
+            return self.get_subset(*args)
+        else:
+            return self.__node_count 
 
     def get_subset(
             self, *key_list: list[str]) -> dict[str: int]:
@@ -274,8 +267,8 @@ class CustomNodeVisitor(ast.NodeVisitor):
         return temp_list
 
     def get_call(self):
-        name = ""
-        c_type = ""
+        # name = ""
+        # c_type = ""
         temp_list = []
         subset: dict = self.get_subset("Call")
 
@@ -290,14 +283,14 @@ class CustomNodeVisitor(ast.NodeVisitor):
                 def_doc_list = self.get_docs()
                 c_type = "Class" if any(obj["name"] == name and isinstance(obj["obj"], ast.ClassDef)
                                         for obj in def_doc_list) else "Function"
-            temp_list.append({
-                "obj": node,
+            call_dict = {
                 "type": c_type,
                 "name": name,
                 "s_segment": ast.get_source_segment(self.script, node),
                 "args": node.args,
                 "kwags": node.keywords
-            })
+            }
+            temp_list.append(Call(node, self.script ,**call_dict))
         return temp_list
 
     def get_assign(self) -> list:
@@ -379,13 +372,26 @@ class CustomNodeVisitor(ast.NodeVisitor):
             for node in nodes:
                 temp_list.append({
                     "obj": node,
-                    "op": node.op.__class__.__name__,
+                    "op": CustomNodeVisitor.__BOOL_OP_mapping[node.op.__class__.__name__],
                     "s_segment": ast.get_source_segment(self.script, node)
                 })
         return temp_list
 
     def get_cmp(self):
-        pass
+        """
+        class ast.Compare(left, ops, comparators)
+        """
+        temp_list = []
+        subset = self.get_subset("Compare")
+        for val in subset.values():
+            nodes = val.get()
+            for node in nodes:
+                temp_list.append({
+                    "obj": node,
+                    "ops": node.op.__class__.__name__,
+                    "s_segment": ast.get_source_segment(self.script, node)
+                })
+        return temp_list
 
     def get_compre(self):
         pass
@@ -443,21 +449,24 @@ class Cl:
     pass
 myClass = Cl(1 - 2)
 myClass.i = 90
+func(a, b=c, *d, **e)
 """
 
 tree = ast.parse(code, type_comments=True)
 visitor = CustomNodeVisitor(code)
-print("Node_count:", visitor.node_count)
-print("Node_sum:", visitor.sum)
-print("Counts_subset:", visitor.get_subset('While', 'import', 'BinOp'))
-print(visitor.format_specifier_check("%d"))
-print("DOCS:", visitor.get_docs())
+# print("Node_count:", visitor.get().get("Module"))
+# print("Node_sum:", visitor.sum)
+# print("Counts_subset:", visitor.get('While', 'import', 'BinOp'))
+# print(visitor.format_specifier_check("%d"))
+# print("DOCS:", visitor.get_docs())
 print("CALL:", visitor.get_call())
-print()
-print("ASSIGN:", visitor.get_assign())
-print()
-print("BINARY_OP:", visitor.get_b_op())
-for i in visitor.get_assign():
-    print(ast.get_source_segment(code, i['obj']))
-print("BOOL_OP:", visitor.get_bool_op())
-# print(visitor.dump())
+# print()
+# print("ASSIGN:", visitor.get_assign())
+# print()
+# print("BINARY_OP:", visitor.get_b_op())
+# for i in visitor.get_assign():
+#     print(ast.get_source_segment(code, i['obj']))
+# print("BOOL_OP:", visitor.get_bool_op()[0]["obj"].__dict__)
+# # print(visitor.dump())
+# repre = BaseReprAST(**visitor.get_bool_op()[0]["obj"].__dict__)
+# print(repre)
