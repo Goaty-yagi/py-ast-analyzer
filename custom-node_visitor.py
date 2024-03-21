@@ -366,6 +366,24 @@ class CustomNodeVisitor(ast.NodeVisitor):
                 })
         return temp_list
 
+    def get_bool_op(self):
+        """
+        class ast.BoolOp(op, values)
+        op: class ast.And
+            class ast.Or
+        """
+        temp_list = []
+        subset = self.get_subset("BoolOp")
+        for val in subset.values():
+            nodes = val.get()
+            for node in nodes:
+                temp_list.append({
+                    "obj": node,
+                    "op": node.op.__class__.__name__,
+                    "s_segment": ast.get_source_segment(self.script, node)
+                })
+        return temp_list
+
     def get_cmp(self):
         pass
 
@@ -407,6 +425,8 @@ def add_numbers(a: str, b: str):
         a = b
         a += 1
         a:int = b
+        if a and b == c:
+            pass
     return a + b
 numbers(1,2)
 print("{}, ko {%d}".format(a, b))
@@ -439,4 +459,5 @@ print()
 print("BINARY_OP:", visitor.get_b_op())
 for i in visitor.get_assign():
     print(ast.get_source_segment(code, i['obj']))
+print("BOOL_OP:", visitor.get_bool_op())
 # print(visitor.dump())
