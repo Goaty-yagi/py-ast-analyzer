@@ -3,6 +3,7 @@ import os
 
 from ast_repr_classes.call import Call
 from ast_repr_classes.doc import Doc
+from ast_repr_classes.b_op import BinaryOperation as BOP
 from node_count_strage import NCS
 """
 This module provides CustomNodeVisitor class
@@ -200,17 +201,34 @@ class CustomNodeVisitor(ast.NodeVisitor):
             nodes = val.get()
             for node in nodes:
                 obj = {
-                    "class": key,
+                    "type": key,
                     "name": node.name if not key == 'Module' else "Module",
                     "doc": ast.get_docstring(node)}
                 temp_list.append(Doc(node, **obj))
         return temp_list
 
     def get_call(self):
-        # name = ""
-        # c_type = ""
+        name = ""
+        c_type = ""
         temp_list = []
         subset: dict = self.get_subset("Call")
+        def get_docs() -> list:
+            """
+            This method create a list containing documemt dict, and returns it.
+            """
+            DC_list = self.__class__.__DC_list
+            DC_list.append("Module")
+            temp_list = []
+            subset = self.get_subset(*DC_list)
+            for key, val in subset.items():
+                nodes = val.get()
+                for node in nodes:
+                    temp_list.append({
+                        "obj": node,
+                        "class": key,
+                        "name": node.name if not key == 'Module' else "Module",
+                        "doc": ast.get_docstring(node)})
+            return temp_list
 
         for node in subset["Call"].get():
             if isinstance(node.func, ast.Attribute):
@@ -220,7 +238,7 @@ class CustomNodeVisitor(ast.NodeVisitor):
             elif isinstance(node.func, ast.Name):
                 # Assuming simple function and class call.
                 name = node.func.id
-                def_doc_list = self.get_docs()
+                def_doc_list = get_docs()
                 c_type = "Class" if any(obj["name"] == name and isinstance(obj["obj"], ast.ClassDef)
                                         for obj in def_doc_list) else "Function"
             call_dict = {
@@ -290,13 +308,14 @@ class CustomNodeVisitor(ast.NodeVisitor):
         for val in subset.values():
             nodes = val.get()
             for node in nodes:
-                temp_list.append({
-                    "obj": node,
+                obj = {
+                    "type": node.op.__class__.__name__,
                     "left": node.left.id if isinstance(node.left, ast.Name) else node.left.value,
                     "op": CustomNodeVisitor.__OP_mapping[node.op.__class__.__name__],
                     "right": node.right.id if isinstance(node.right, ast.Name) else node.right.value,
                     "s_segment": ast.get_source_segment(self.script, node)
-                })
+                }
+                temp_list.append(BOP(node, **obj))
         return temp_list
 
     def get_bool_op(self):

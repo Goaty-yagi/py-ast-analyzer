@@ -1,4 +1,3 @@
-import ast
 """
 This module provides BaseReprAST class which desied for simplifying
 AST attribute.
