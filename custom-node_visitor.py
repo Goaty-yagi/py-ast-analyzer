@@ -1,6 +1,6 @@
 import ast
 import os
-from ast_repr import BaseReprAST, Call
+from ast_repr_classes.call import Call
 from node_count_strage import NCS
 """
 This module provides CustomNodeVisitor class
