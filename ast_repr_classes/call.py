@@ -15,10 +15,6 @@ class Call(BaseReprAST):
         Call.total_instance += 1
         Call.instance_storage.append(self)
 
-    def setAttr(self, **kwags) -> None:
-        for key, val in kwags.items():
-            setattr(self, key, val)
-
     def args_handler(self, script, *args) -> None:
         self.args = []
         for arg in args:

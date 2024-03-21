@@ -1,6 +1,8 @@
 import ast
 import os
+
 from ast_repr_classes.call import Call
+from ast_repr_classes.doc import Doc
 from node_count_strage import NCS
 """
 This module provides CustomNodeVisitor class
@@ -18,8 +20,6 @@ class CustomNodeVisitor(ast.NodeVisitor):
     - __last_node: Last node of the initial node.
     - __node_count: Dictionary to store counts of different node types.
     - __format_values: List to store format value to check specifiers.
-    - __doc_list: List to store the doc dictionary according
-    to __doc_d_prototype attributes.
 
     """
     unparser = ast._Unparser()
@@ -28,6 +28,7 @@ class CustomNodeVisitor(ast.NodeVisitor):
     __OP_mapping = unparser.binop
     __COMPARE_mapping = unparser.cmpops
     __BOOL_OP_mapping = unparser.boolops
+
     def __init__(self, script: str) -> None:
         """
         Initializes the CustomNodeVisitor object.
@@ -63,68 +64,6 @@ class CustomNodeVisitor(ast.NodeVisitor):
         - AttributeError: This attribute is read-only.
         """
         raise AttributeError(CustomNodeVisitor.__read_only_error_text("sum"))
-
-    @property
-    def node_count(self) -> int:
-        """
-        Property method to get the value of the 'node_count' attribute.
-
-        Returns:
-        - __node_count attribute.
-        """
-        return self.__node_count
-
-    @node_count.setter
-    def node_count(self, value: any):
-        """
-        Setter method for 'node_count' attribute, raise Attribute error.
-
-        Parameters:
-        - value(any): The value to set (ignored).
-
-        Raises:
-        - AttributeError: This attribute is read-only.
-        """
-        raise AttributeError(
-            CustomNodeVisitor.__read_only_error_text("node_count"))
-
-    @property
-    def format_values(self) -> None:
-        """
-        Property method to raise ValueError for "format_values" attribute.
-
-        Raises:
-        - ValueError: Not allowed to access.
-        """
-        raise ValueError(
-            CustomNodeVisitor.__not_allowed_error_text("format_values"))
-
-    @format_values.setter
-    def format_values(self, value: any) -> None:
-        """
-        Property method to raise ValueError for "format_values" attribute.
-
-        Parameters:
-        - value(any): The value to set (ignored).
-
-        Raises:
-        - ValueError: Not allowed to access.
-        """
-        raise ValueError(
-            CustomNodeVisitor.__not_allowed_error_text("format_values"))
-
-    @staticmethod
-    def __not_allowed_error_text(attr: str) -> str:
-        """
-        Static method to provide error text for not allowed attribute access.
-
-        Parameters:
-        - attr(str): The attribute name.
-
-        Returns:
-        - Error message string.
-        """
-        return f"You are not allowed to access '{attr}' attribute."
 
     @staticmethod
     def __read_only_error_text(attr: str) -> str:
@@ -198,11 +137,12 @@ class CustomNodeVisitor(ast.NodeVisitor):
         - str: AST dump of the script.
         """
         return ast.dump(self.tree, indent=indent)
+
     def get(self, *args: list[str]) -> dict[str: int]:
         if len(args):
             return self.get_subset(*args)
         else:
-            return self.__node_count 
+            return self.__node_count
 
     def get_subset(
             self, *key_list: list[str]) -> dict[str: int]:
@@ -259,11 +199,11 @@ class CustomNodeVisitor(ast.NodeVisitor):
         for key, val in subset.items():
             nodes = val.get()
             for node in nodes:
-                temp_list.append({
-                    "obj": node,
+                obj = {
                     "class": key,
                     "name": node.name if not key == 'Module' else "Module",
-                    "doc": ast.get_docstring(node)})
+                    "doc": ast.get_docstring(node)}
+                temp_list.append(Doc(node, **obj))
         return temp_list
 
     def get_call(self):
@@ -290,7 +230,7 @@ class CustomNodeVisitor(ast.NodeVisitor):
                 "args": node.args,
                 "kwags": node.keywords
             }
-            temp_list.append(Call(node, self.script ,**call_dict))
+            temp_list.append(Call(node, self.script, **call_dict))
         return temp_list
 
     def get_assign(self) -> list:
@@ -458,8 +398,8 @@ visitor = CustomNodeVisitor(code)
 # print("Node_sum:", visitor.sum)
 # print("Counts_subset:", visitor.get('While', 'import', 'BinOp'))
 # print(visitor.format_specifier_check("%d"))
-# print("DOCS:", visitor.get_docs())
-print("CALL:", visitor.get_call())
+print("DOCS:", visitor.get_docs())
+# print("CALL:", visitor.get_call())
 # print()
 # print("ASSIGN:", visitor.get_assign())
 # print()

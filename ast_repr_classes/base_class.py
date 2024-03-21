@@ -20,3 +20,7 @@ class BaseReprAST:
 
     def __repr__(self) -> str:
         return str(self.__dict__)
+
+    def setAttr(self, **kwags) -> None:
+        for key, val in kwags.items():
+            setattr(self, key, val)
