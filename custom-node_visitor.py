@@ -1,10 +1,7 @@
 import ast
 import os
 
-from ast_repr_classes.call import Call
-from ast_repr_classes.doc import Doc
-from ast_repr_classes.b_op import BinaryOperation as BOP
-from ast_repr_classes.bool_op import BoolOperation as BoolOP
+from __init__ import Call, Doc, BOP, BoolOP, Compare
 from node_count_strage import NCS
 """
 This module provides CustomNodeVisitor class
@@ -28,7 +25,7 @@ class CustomNodeVisitor(ast.NodeVisitor):
     __DC_list = ["ClassDef", "AsyncFunctionDef", "FunctionDef"]
     __ASSIGN_list = ["Assign", "AugAssign", "AnnAssign", "NamedExpr"]
     __OP_mapping = unparser.binop
-    __COMPARE_mapping = unparser.cmpops
+    __COMPARE_MAP = unparser.cmpops
     __BOOL_OP_mapping = unparser.boolops
 
     def __init__(self, script: str) -> None:
@@ -213,6 +210,7 @@ class CustomNodeVisitor(ast.NodeVisitor):
         c_type = ""
         temp_list = []
         subset: dict = self.get_subset("Call")
+
         def get_docs() -> list:
             """
             This method create a list containing documemt dict, and returns it.
@@ -348,11 +346,13 @@ class CustomNodeVisitor(ast.NodeVisitor):
         for val in subset.values():
             nodes = val.get()
             for node in nodes:
-                temp_list.append({
-                    "obj": node,
-                    "ops": node.op.__class__.__name__,
+                obj = {
+                    "left": ast.get_source_segment(self.script, node.left),
+                    "ops": [CustomNodeVisitor.__COMPARE_MAP[op.__class__.__name__] for op in node.ops],
+                    "comparators":[ast.get_source_segment(self.script, com) for com in node.comparators],
                     "s_segment": ast.get_source_segment(self.script, node)
-                })
+                }
+                temp_list.append(Compare(node, self.script, **obj))
         return temp_list
 
     def get_compre(self):
@@ -428,7 +428,8 @@ visitor = CustomNodeVisitor(code)
 # print("BINARY_OP:", visitor.get_b_op())
 # for i in visitor.get_assign():
 #     print(ast.get_source_segment(code, i['obj']))
-print("BOOL_OP:", visitor.get_bool_op())
+# print("BOOL_OP:", visitor.get_bool_op())
+print("COMPARE:", visitor.get_cmp())
 # # print(visitor.dump())
 # repre = BaseReprAST(**visitor.get_bool_op()[0]["obj"].__dict__)
 # print(repre)
