@@ -4,6 +4,7 @@ import os
 from ast_repr_classes.call import Call
 from ast_repr_classes.doc import Doc
 from ast_repr_classes.b_op import BinaryOperation as BOP
+from ast_repr_classes.bool_op import BoolOperation as BoolOP
 from node_count_strage import NCS
 """
 This module provides CustomNodeVisitor class
@@ -329,11 +330,13 @@ class CustomNodeVisitor(ast.NodeVisitor):
         for val in subset.values():
             nodes = val.get()
             for node in nodes:
-                temp_list.append({
-                    "obj": node,
+                obj = {
+                    "type": node.op.__class__.__name__,
                     "op": CustomNodeVisitor.__BOOL_OP_mapping[node.op.__class__.__name__],
+                    "values": node.values,
                     "s_segment": ast.get_source_segment(self.script, node)
-                })
+                }
+                temp_list.append(BoolOP(node, self.script, **obj))
         return temp_list
 
     def get_cmp(self):
@@ -417,7 +420,7 @@ visitor = CustomNodeVisitor(code)
 # print("Node_sum:", visitor.sum)
 # print("Counts_subset:", visitor.get('While', 'import', 'BinOp'))
 # print(visitor.format_specifier_check("%d"))
-print("DOCS:", visitor.get_docs())
+# print("DOCS:", visitor.get_docs())
 # print("CALL:", visitor.get_call())
 # print()
 # print("ASSIGN:", visitor.get_assign())
@@ -425,7 +428,7 @@ print("DOCS:", visitor.get_docs())
 # print("BINARY_OP:", visitor.get_b_op())
 # for i in visitor.get_assign():
 #     print(ast.get_source_segment(code, i['obj']))
-# print("BOOL_OP:", visitor.get_bool_op()[0]["obj"].__dict__)
+print("BOOL_OP:", visitor.get_bool_op())
 # # print(visitor.dump())
 # repre = BaseReprAST(**visitor.get_bool_op()[0]["obj"].__dict__)
 # print(repre)
