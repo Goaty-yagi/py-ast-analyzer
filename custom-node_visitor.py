@@ -1,7 +1,7 @@
 import ast
 import os
 
-from __init__ import Call, Doc, BOP, BoolOP, Compare
+from __init__ import Call, Doc, BOP, BoolOp, Compare, Comp
 from node_count_strage import NCS
 """
 This module provides CustomNodeVisitor class
@@ -24,6 +24,7 @@ class CustomNodeVisitor(ast.NodeVisitor):
     unparser = ast._Unparser()
     __DC_list = ["ClassDef", "AsyncFunctionDef", "FunctionDef"]
     __ASSIGN_list = ["Assign", "AugAssign", "AnnAssign", "NamedExpr"]
+    __COMPREHENSION_LIST = ["ListComp", "SetComp", "GeneratorExp", "DictComp"]
     __OP_mapping = unparser.binop
     __COMPARE_MAP = unparser.cmpops
     __BOOL_OP_mapping = unparser.boolops
@@ -334,7 +335,7 @@ class CustomNodeVisitor(ast.NodeVisitor):
                     "values": node.values,
                     "s_segment": ast.get_source_segment(self.script, node)
                 }
-                temp_list.append(BoolOP(node, self.script, **obj))
+                temp_list.append(BoolOp(node, self.script, **obj))
         return temp_list
 
     def get_cmp(self):
@@ -349,14 +350,56 @@ class CustomNodeVisitor(ast.NodeVisitor):
                 obj = {
                     "left": ast.get_source_segment(self.script, node.left),
                     "ops": [CustomNodeVisitor.__COMPARE_MAP[op.__class__.__name__] for op in node.ops],
-                    "comparators":[ast.get_source_segment(self.script, com) for com in node.comparators],
+                    "comparators": [ast.get_source_segment(self.script, com) for com in node.comparators],
                     "s_segment": ast.get_source_segment(self.script, node)
                 }
                 temp_list.append(Compare(node, self.script, **obj))
         return temp_list
 
-    def get_compre(self):
+    def get_subscripting(self):
+        """
+        """
         pass
+
+    def get_compre(self):
+        """
+        class ast.ListComp(elt, generators)
+        squares = [x**2 for x in range(10)]
+
+        class ast.SetComp(elt, generators)
+        even_numbers_set = {x for x in range(10) if x % 2 == 0}
+
+        class ast.GeneratorExp(elt, generators)
+        squares_generator = (x**2 for x in range(10))
+
+        class ast.DictComp(key, value, generators)
+        squares_dict = {x: x**2 for x in range(5)}
+
+        class comprehension(target, iter, ifs, is_async)
+        This is included in the generators attr
+        """
+        temp_list = []
+        obj = ""
+        subset = self.get_subset(*CustomNodeVisitor.__COMPREHENSION_LIST)
+        print("subset", subset)
+        for val in subset.values():
+            nodes = val.get()
+            for node in nodes:
+                if node.__class__.__name__ != "DictComp":
+                    obj = {
+                        "elt": ast.get_source_segment(self.script, node.elt),
+                        "generators": [g for g in node.generators],
+                        "s_segment": ast.get_source_segment(self.script, node)
+                    }
+                else:
+                    obj = {
+                        "key": ast.get_source_segment(self.script,node.key),
+                        "value": ast.get_source_segment(self.script, node.value),
+                        "generators": [ast.get_source_segment(self.script, g) for g in node.generators],
+                        "s_segment": ast.get_source_segment(self.script, node)
+                    }
+                temp_list.append(Comp(node, self.script, **obj))
+        return temp_list
 
     # *** visit_classname methods from here ***
 
@@ -412,11 +455,14 @@ class Cl:
 myClass = Cl(1 - 2)
 myClass.i = 90
 func(a, b=c, *d, **e)
+a = [i for i in range(list)]
+b = {x: x**2 for x in numbers}
+c = (n**2 for n in it if n>5 if n<10)
 """
 
 tree = ast.parse(code, type_comments=True)
 visitor = CustomNodeVisitor(code)
-# print("Node_count:", visitor.get().get("Module"))
+print("Node_count:", visitor.get())
 # print("Node_sum:", visitor.sum)
 # print("Counts_subset:", visitor.get('While', 'import', 'BinOp'))
 # print(visitor.format_specifier_check("%d"))
@@ -430,6 +476,7 @@ visitor = CustomNodeVisitor(code)
 #     print(ast.get_source_segment(code, i['obj']))
 # print("BOOL_OP:", visitor.get_bool_op())
 print("COMPARE:", visitor.get_cmp())
+# print("COMPREHENTION:", visitor.get_compre())
 # # print(visitor.dump())
 # repre = BaseReprAST(**visitor.get_bool_op()[0]["obj"].__dict__)
 # print(repre)

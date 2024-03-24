@@ -2,7 +2,7 @@ import ast
 
 from .base_class import BaseReprAST
 
-class BoolOperation(BaseReprAST):
+class BoolOp(BaseReprAST):
     total_instance = 0
     instance_storage = []
     
@@ -10,8 +10,8 @@ class BoolOperation(BaseReprAST):
         self.setAttr(**kwags)
         self.values_handler(script, *self.values)
         super().__init__(**node.__dict__)
-        BoolOperation.total_instance += 1
-        BoolOperation.instance_storage.append(self)
+        BoolOp.total_instance += 1
+        BoolOp.instance_storage.append(self)
 
     def values_handler(self, script, *args):
         self.values = []
